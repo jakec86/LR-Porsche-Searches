@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arkansas Search Volume Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'DM Mono', monospace; background: #e8eaf0; color: #1a1a2e; height: 100vh; overflow: hidden; }
+
+  #header {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 1000;
+    padding: 14px 20px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.97) 0%, rgba(255,255,255,0.0) 100%);
+    display: flex; align-items: flex-start; justify-content: space-between;
+    pointer-events: none;
+  }
+  #header h1 { font-family: 'DM Serif Display', serif; font-size: 20px; color: #000; letter-spacing: -0.3px; line-height: 1.2; }
+  #header p { font-size: 11px; color: #5f6368; margin-top: 3px; letter-spacing: 0.5px; }
+
+  #total-badge {
+    background: #fff; border: 1px solid #dadce0; border-radius: 8px;
+    padding: 8px 14px; text-align: right; box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+  }
+  #total-badge .num { font-size: 20px; font-weight: 500; color: #1a73e8; }
+  #total-badge .lbl { font-size: 10px; color: #5f6368; text-transform: uppercase; letter-spacing: 1px; }
+
+  #map { width: 100%; height: 100vh; }
+
+  #legend {
+    position: absolute; bottom: 24px; left: 24px; z-index: 1000;
+    background: #fff; border: 1px solid #dadce0; border-radius: 10px;
+    padding: 14px 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  #legend h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: #5f6368; margin-bottom: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 11px; color: #3c4043; }
+  .legend-circle { border-radius: 50%; background: rgba(26,115,232,0.2); border: 2px solid rgba(26,115,232,0.7); flex-shrink: 0; }
+
+  .custom-tooltip {
+    background: #fff !important; border: 1px solid #dadce0 !important; border-radius: 8px !important;
+    color: #3c4043 !important; font-family: 'DM Mono', monospace !important;
+    font-size: 12px !important; padding: 10px 14px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+  }
+  .tooltip-city { font-family: 'DM Serif Display', serif; font-size: 15px; color: #1a1a2e; margin-bottom: 4px; }
+  .tooltip-searches { color: #1a73e8; font-size: 13px; font-weight: 500; }
+  .tooltip-zips { color: #5f6368; font-size: 10px; margin-top: 4px; max-width: 200px; line-height: 1.5; }
+
+  .leaflet-container { background: #e8eaf0 !important; }
+
+  #stats {
+    position: absolute; bottom: 24px; right: 24px; z-index: 1000;
+    background: #fff; border: 1px solid #dadce0; border-radius: 10px;
+    padding: 14px 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); min-width: 190px;
+  }
+  #stats h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: #5f6368; margin-bottom: 10px; }
+  .stat-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 11px; }
+  .stat-city { color: #3c4043; }
+  .stat-num { color: #1a73e8; font-weight: 500; }
+  .stat-bar-wrap { width: 100%; height: 3px; background: #f1f3f4; border-radius: 2px; margin-bottom: 8px; }
+  .stat-bar { height: 100%; border-radius: 2px; background: linear-gradient(90deg, #1a73e8, #4285f4); }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div>
+    <h1>Arkansas Search Volume</h1>
+    <p>Geographic distribution by city · 30-Mile capture radius</p>
+  </div>
+  <div id="total-badge">
+    <div class="num">19,335</div>
+    <div class="lbl">Total Searches</div>
+  </div>
+</div>
+
+<div id="map"></div>
+
+<div id="legend">
+  <h3>Search Volume</h3>
+  <div class="legend-item">
+    <div class="legend-circle" style="width:40px;height:40px;"></div>
+    <span>5,000+</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-circle" style="width:26px;height:26px;"></div>
+    <span>500 – 2,000</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-circle" style="width:16px;height:16px;"></div>
+    <span>100 – 500</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-circle" style="width:9px;height:9px;"></div>
+    <span>&lt; 100</span>
+  </div>
+  <div style="border-top:1px solid #dadce0;margin-top:10px;padding-top:10px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:7px;font-size:11px;color:#3c4043;">
+      <div style="width:14px;height:14px;border-radius:50%;background:#1a73e8;border:2px solid #fff;outline:2px solid #1a73e8;flex-shrink:0;"></div>
+      <span>Colonel Glenn (81.1% · 15,676)</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;font-size:11px;color:#3c4043;">
+      <div style="width:14px;height:14px;border-radius:50%;background:#f97316;border:2px solid #fff;outline:2px solid #f97316;flex-shrink:0;"></div>
+      <span>Optimal Center (83.8% · 16,209)</span>
+    </div>
+  </div>
+</div>
+
+<div id="stats">
+  <h3>Top 5 Cities</h3>
+  <div class="stat-row"><span class="stat-city">Little Rock</span><span class="stat-num">9,446</span></div>
+  <div class="stat-bar-wrap"><div class="stat-bar" style="width:100%"></div></div>
+  <div class="stat-row"><span class="stat-city">Conway</span><span class="stat-num">1,322</span></div>
+  <div class="stat-bar-wrap"><div class="stat-bar" style="width:14%"></div></div>
+  <div class="stat-row"><span class="stat-city">North Little Rock</span><span class="stat-num">1,003</span></div>
+  <div class="stat-bar-wrap"><div class="stat-bar" style="width:10.6%"></div></div>
+  <div class="stat-row"><span class="stat-city">Benton</span><span class="stat-num">970</span></div>
+  <div class="stat-bar-wrap"><div class="stat-bar" style="width:10.3%"></div></div>
+  <div class="stat-row"><span class="stat-city">Hot Springs</span><span class="stat-num">961</span></div>
+  <div class="stat-bar-wrap"><div class="stat-bar" style="width:10.2%"></div></div>
+</div>
+
+<script>
+const cities = [
+  {name:"Little Rock",total:9446,lat:34.7465,lng:-92.2896},
+  {name:"Conway",total:1322,lat:35.0887,lng:-92.4421},
+  {name:"North Little Rock",total:1003,lat:34.7695,lng:-92.2674},
+  {name:"Benton",total:970,lat:34.5648,lng:-92.5868},
+  {name:"Hot Springs",total:961,lat:34.5037,lng:-93.0552},
+  {name:"Cabot",total:525,lat:34.9743,lng:-92.0165},
+  {name:"Maumelle",total:481,lat:34.8693,lng:-92.3874},
+  {name:"Bryant",total:351,lat:34.5954,lng:-92.4893},
+  {name:"Sherwood",total:348,lat:34.8151,lng:-92.2243},
+  {name:"Russellville",total:331,lat:35.2784,lng:-93.1338},
+  {name:"Jacksonville",total:313,lat:34.8668,lng:-92.1099},
+  {name:"Alexander",total:225,lat:34.6379,lng:-92.4454},
+  {name:"Hot Springs Village",total:219,lat:34.6596,lng:-93.0035},
+  {name:"Searcy",total:190,lat:35.2509,lng:-91.7362},
+  {name:"Pine Bluff",total:185,lat:34.2284,lng:-92.0032},
+  {name:"Austin",total:134,lat:34.9929,lng:-91.9829},
+  {name:"Paron",total:134,lat:34.7043,lng:-92.7240},
+  {name:"Batesville",total:110,lat:35.7698,lng:-91.6407},
+  {name:"Sheridan",total:93,lat:34.3068,lng:-92.4010},
+  {name:"Houston",total:86,lat:35.4451,lng:-92.7260},
+  {name:"Greenbrier",total:81,lat:35.2337,lng:-92.3849},
+  {name:"Mabelvale",total:81,lat:34.6501,lng:-92.3985},
+  {name:"Monticello",total:81,lat:33.6318,lng:-91.7929},
+  {name:"White Hall",total:81,lat:34.2768,lng:-92.0793},
+  {name:"Morrilton",total:78,lat:35.1512,lng:-92.7435},
+  {name:"Shirley",total:77,lat:35.6534,lng:-92.3182},
+  {name:"Enola",total:74,lat:35.2062,lng:-92.1824},
+  {name:"Camden",total:70,lat:33.5843,lng:-92.8343},
+  {name:"Heber Springs",total:62,lat:35.4912,lng:-92.0307},
+  {name:"Mena",total:60,lat:34.5862,lng:-94.2396},
+  {name:"Malvern",total:57,lat:34.3623,lng:-92.8129},
+  {name:"Mayflower",total:51,lat:34.9576,lng:-92.4357},
+  {name:"Romance",total:50,lat:35.1615,lng:-91.9165},
+  {name:"Beebe",total:49,lat:35.0684,lng:-91.8832},
+  {name:"Dardanelle",total:46,lat:35.2237,lng:-93.1571},
+  {name:"Etowah",total:45,lat:35.3284,lng:-93.1260},
+  {name:"Pottsville",total:43,lat:35.2476,lng:-93.0460},
+  {name:"Vilonia",total:43,lat:35.0751,lng:-92.2088},
+  {name:"Sweet Home",total:41,lat:34.7251,lng:-92.1849},
+  {name:"Horseshoe Bend",total:36,lat:36.2273,lng:-91.7540},
+  {name:"Poyen",total:29,lat:34.3368,lng:-92.6332},
+  {name:"Drasco",total:23,lat:35.6318,lng:-92.2324},
+  {name:"Stuttgart",total:22,lat:34.5001,lng:-91.5529},
+  {name:"Adona",total:21,lat:35.0426,lng:-92.9035},
+  {name:"Gould",total:21,lat:33.9779,lng:-91.5668},
+  {name:"Mountain View",total:21,lat:35.8679,lng:-92.1182},
+  {name:"Clinton",total:19,lat:35.5951,lng:-92.4599},
+  {name:"Redfield",total:19,lat:34.4418,lng:-92.1801},
+  {name:"Rison",total:19,lat:33.9601,lng:-92.1904},
+  {name:"Pearcy",total:18,lat:34.4651,lng:-93.0835},
+  {name:"Solgohachia",total:17,lat:35.1401,lng:-92.7535},
+  {name:"Newport",total:16,lat:35.6068,lng:-91.2821},
+  {name:"Bigelow",total:15,lat:35.0401,lng:-92.6360},
+  {name:"Lonoke",total:15,lat:34.7868,lng:-91.8993},
+  {name:"Bauxite",total:14,lat:34.5651,lng:-92.4718},
+  {name:"Brinkley",total:13,lat:34.8851,lng:-91.1943},
+  {name:"Springfield",total:13,lat:36.0751,lng:-93.1449},
+  {name:"Cave City",total:12,lat:35.9401,lng:-91.5499},
+  {name:"Glenwood",total:12,lat:34.3318,lng:-93.5543},
+  {name:"McRae",total:12,lat:35.1101,lng:-91.8221},
+  {name:"Quitman",total:12,lat:35.3901,lng:-92.2099},
+  {name:"Oden",total:11,lat:34.6251,lng:-93.8010},
+  {name:"Arkadelphia",total:10,lat:34.1201,lng:-93.0538},
+  {name:"Atkins",total:10,lat:35.2451,lng:-92.9385},
+  {name:"Higden",total:10,lat:35.5701,lng:-92.1924},
+  {name:"Scott",total:10,lat:34.8518,lng:-92.0874},
+  {name:"DeWitt",total:9,lat:34.2918,lng:-91.3360},
+  {name:"Mount Pleasant",total:9,lat:36.4668,lng:-94.9749},
+  {name:"Pleasant Plains",total:9,lat:35.5551,lng:-91.9032},
+  {name:"Rose Bud",total:9,lat:35.3268,lng:-92.0710},
+  {name:"Sidney",total:9,lat:35.8951,lng:-91.6499},
+  {name:"Danville",total:8,lat:35.0601,lng:-93.3935},
+  {name:"Higginson",total:8,lat:35.1801,lng:-91.7160},
+  {name:"Bald Knob",total:7,lat:35.3051,lng:-91.5660},
+  {name:"Fordyce",total:7,lat:33.8118,lng:-92.4143},
+  {name:"Ward",total:7,lat:35.0401,lng:-91.9460},
+  {name:"Warren",total:7,lat:33.6118,lng:-92.0643},
+  {name:"Carlisle",total:6,lat:34.7901,lng:-91.7524},
+  {name:"Dover",total:6,lat:35.4018,lng:-93.1138},
+  {name:"Mount Vernon",total:6,lat:35.2168,lng:-92.6060},
+  {name:"Royal",total:6,lat:34.5318,lng:-93.4035},
+  {name:"Watson",total:6,lat:33.8601,lng:-91.2932},
+  {name:"Ash Flat",total:5,lat:36.2268,lng:-91.6099},
+  {name:"DeValls Bluff",total:5,lat:34.7768,lng:-91.4468},
+  {name:"Harrell",total:5,lat:33.4751,lng:-92.5093},
+  {name:"Kensett",total:5,lat:35.2351,lng:-91.6699},
+  {name:"Knoxville",total:5,lat:35.3601,lng:-93.3210},
+  {name:"Mountain Pine",total:5,lat:34.5718,lng:-93.1585},
+  {name:"Norman",total:5,lat:34.4568,lng:-93.6860},
+  {name:"Rosston",total:5,lat:33.5801,lng:-93.2985},
+  {name:"Star City",total:5,lat:33.9418,lng:-91.8432},
+  {name:"Beedeville",total:4,lat:35.4318,lng:-91.3221},
+  {name:"Bismarck",total:4,lat:34.3518,lng:-93.1785},
+  {name:"Bradford",total:4,lat:35.4268,lng:-91.4460},
+  {name:"Grannis",total:4,lat:34.2368,lng:-94.3335},
+  {name:"Hensley",total:4,lat:34.6501,lng:-92.2685},
+  {name:"Jacksonport",total:4,lat:35.6401,lng:-91.3121},
+  {name:"Marshall",total:4,lat:35.9101,lng:-92.6349},
+  {name:"Mount Ida",total:4,lat:34.5568,lng:-93.6310},
+  {name:"Wrightsville",total:4,lat:34.5951,lng:-92.2135},
+  {name:"Bearden",total:3,lat:33.7268,lng:-92.6143},
+  {name:"Biscoe",total:3,lat:34.8468,lng:-91.4832},
+  {name:"Center Ridge",total:3,lat:35.2118,lng:-92.6210},
+  {name:"Cove",total:3,lat:34.4168,lng:-94.4010},
+  {name:"Curtis",total:3,lat:33.6351,lng:-93.0835},
+  {name:"Damascus",total:3,lat:35.3768,lng:-92.4035},
+  {name:"Des Arc",total:3,lat:34.9768,lng:-91.4999},
+  {name:"Guion",total:3,lat:35.9268,lng:-91.9532},
+  {name:"Hazen",total:3,lat:34.7818,lng:-91.5718},
+  {name:"Kirby",total:3,lat:34.2318,lng:-93.8985},
+  {name:"Melbourne",total:3,lat:36.0618,lng:-91.9035},
+  {name:"Prescott",total:3,lat:33.8018,lng:-93.3785},
+  {name:"Alicia",total:2,lat:36.0068,lng:-91.0410},
+  {name:"Amity",total:2,lat:34.2618,lng:-93.4660},
+  {name:"Bonnerdale",total:2,lat:34.4218,lng:-93.2485},
+  {name:"Calico Rock",total:2,lat:36.1168,lng:-92.1349},
+  {name:"Casscoe",total:2,lat:34.6368,lng:-91.4424},
+  {name:"Donaldson",total:2,lat:34.1251,lng:-92.9035},
+  {name:"Fountain Lake",total:2,lat:34.4551,lng:-93.0610},
+  {name:"Hagarville",total:2,lat:35.5268,lng:-93.2899},
+  {name:"Hampton",total:2,lat:33.5318,lng:-92.4793},
+  {name:"McGehee",total:2,lat:33.6268,lng:-91.3993},
+  {name:"Perry",total:2,lat:35.0518,lng:-92.8010},
+  {name:"Scotland",total:2,lat:33.3851,lng:-93.4485},
+  {name:"Traskwood",total:2,lat:34.4668,lng:-92.6585},
+  {name:"Wooster",total:2,lat:35.1951,lng:-92.4624},
+  {name:"Caddo Gap",total:1,lat:34.3618,lng:-93.6660},
+  {name:"Chidester",total:1,lat:33.6968,lng:-93.0110},
+  {name:"Coy",total:1,lat:34.6701,lng:-91.6660},
+  {name:"Edgemont",total:1,lat:35.6468,lng:-92.1785},
+  {name:"Evening Shade",total:1,lat:36.0568,lng:-91.6310},
+  {name:"Franklin",total:1,lat:35.5218,lng:-93.2785},
+  {name:"Gurdon",total:1,lat:33.9218,lng:-93.1535},
+  {name:"Hatfield",total:1,lat:34.4868,lng:-94.3885},
+  {name:"Holly Grove",total:1,lat:34.5968,lng:-91.2010},
+  {name:"Humnoke",total:1,lat:34.5568,lng:-91.7635},
+  {name:"Ida",total:1,lat:33.4201,lng:-93.3135},
+  {name:"Keo",total:1,lat:34.6101,lng:-92.0185},
+  {name:"Knobel",total:1,lat:36.2768,lng:-90.6060},
+  {name:"Lamar",total:1,lat:35.4418,lng:-93.3885},
+  {name:"Lonsdale",total:1,lat:34.5568,lng:-92.8585},
+  {name:"Menifee",total:1,lat:35.1668,lng:-92.5460},
+  {name:"Murfreesboro",total:1,lat:34.0618,lng:-93.6910},
+  {name:"Old Town",total:1,lat:34.3268,lng:-93.2335},
+  {name:"Onia",total:1,lat:35.8768,lng:-92.2685},
+  {name:"Perryville",total:1,lat:35.0018,lng:-92.8010},
+  {name:"Roland",total:1,lat:34.7268,lng:-92.6035},
+  {name:"Story",total:1,lat:34.6518,lng:-93.5910},
+  {name:"Wilburn",total:1,lat:35.5318,lng:-91.9710},
+  {name:"Winchester",total:1,lat:34.2901,lng:-91.6260},
+];
+
+const maxTotal = Math.max(...cities.map(c => c.total));
+
+function getRadius(t) {
+  return 4 + (Math.sqrt(t) / Math.sqrt(maxTotal)) * 46;
+}
+
+function getColor(t) {
+  if (t >= 5000) return { fill:'rgba(239,68,68,0.55)',   stroke:'rgba(239,68,68,0.9)' };
+  if (t >= 500)  return { fill:'rgba(249,115,22,0.5)',  stroke:'rgba(249,115,22,0.85)' };
+  if (t >= 100)  return { fill:'rgba(234,179,8,0.45)',  stroke:'rgba(234,179,8,0.85)' };
+  if (t >= 20)   return { fill:'rgba(34,197,94,0.4)',   stroke:'rgba(34,197,94,0.8)' };
+  return           { fill:'rgba(26,115,232,0.35)',  stroke:'rgba(26,115,232,0.75)' };
+}
+
+const map = L.map('map', { center:[34.85, -92.40], zoom:8, zoomControl:false, attributionControl:false });
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution:'&copy; OpenStreetMap contributors',
+  subdomains:'abc', maxZoom:19
+}).addTo(map);
+
+L.control.zoom({ position:'topright' }).addTo(map);
+L.control.attribution({ position:'bottomleft', prefix:'© OpenStreetMap' }).addTo(map);
+
+// ── 30-Mile Radius — Colonel Glenn Plaza Loop (current) ───────────
+const THIRTY_MILES_M = 48280;
+
+// Current radius circle (blue)
+const currentCircle = L.circle([34.7070, -92.3750], {
+  radius: THIRTY_MILES_M,
+  color: '#1a73e8',
+  weight: 2.5,
+  opacity: 0.85,
+  fillColor: '#1a73e8',
+  fillOpacity: 0.10,
+  dashArray: '8 5',
+  interactive: false,
+}).addTo(map);
+
+// Current center pin (blue)
+L.circleMarker([34.7070, -92.3750], {
+  radius: 9,
+  fillColor: '#1a73e8',
+  fillOpacity: 1,
+  color: '#fff',
+  weight: 2.5,
+}).addTo(map).bindTooltip(
+  '<div class="tooltip-city">Colonel Glenn Plaza Loop</div>' +
+  '<div class="tooltip-searches" style="font-size:11px;">Current Center — 15,676 searches (81.1%)</div>' +
+  '<div class="tooltip-zips">Little Rock, AR 72210<br>34.7070, -92.3750</div>',
+  { className:'custom-tooltip', sticky:true }
+);
+
+// Optimal center circle (orange)
+L.circle([34.6920, -92.5920], {
+  radius: THIRTY_MILES_M,
+  color: '#f97316',
+  weight: 2.5,
+  opacity: 0.7,
+  fillColor: '#f97316',
+  fillOpacity: 0.08,
+  dashArray: '8 5',
+  interactive: false,
+}).addTo(map);
+
+// Optimal center pin (orange)
+L.circleMarker([34.6920, -92.5920], {
+  radius: 9,
+  fillColor: '#f97316',
+  fillOpacity: 1,
+  color: '#fff',
+  weight: 2.5,
+}).addTo(map).bindTooltip(
+  '<div class="tooltip-city">Optimal Capture Center</div>' +
+  '<div class="tooltip-searches" style="font-size:11px;color:#f97316;">Best Location — 16,209 searches (83.8%)</div>' +
+  '<div class="tooltip-zips">Benton / Bryant area · +533 more vs current<br>34.6920, -92.5920</div>',
+  { className:'custom-tooltip', sticky:true }
+);
+
+// ── City Bubbles ───────────────────────────────────────────────────
+cities.forEach(city => {
+  const r = getRadius(city.total);
+  const col = getColor(city.total);
+
+  L.circleMarker([city.lat, city.lng], {
+    radius: r,
+    fillColor: col.fill,
+    fillOpacity: 1,
+    color: col.stroke,
+    weight: 1.5,
+  }).addTo(map).bindTooltip(
+    `<div class="tooltip-city">${city.name}</div>
+     <div class="tooltip-searches">${city.total.toLocaleString()} searches</div>`,
+    { className:'custom-tooltip', sticky:true, offset:[10,0] }
+  );
+
+  if (city.total >= 300) {
+    L.marker([city.lat, city.lng], {
+      icon: L.divIcon({
+        html:`<div style="color:#1a1a2e;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;
+              white-space:nowrap;text-shadow:0 1px 3px rgba(255,255,255,0.9),0 0 6px rgba(255,255,255,0.8);
+              pointer-events:none;margin-top:${r+3}px;text-align:center;transform:translateX(-50%);">
+              ${city.name}</div>`,
+        className:'', iconAnchor:[0,0]
+      }),
+      interactive:false
+    }).addTo(map);
+  }
+});
+
+// ── Volume tier legend ─────────────────────────────────────────────
+const colorLegend = L.control({ position:'bottomright' });
+colorLegend.onAdd = function() {
+  const div = L.DomUtil.create('div');
+  div.style.cssText = 'background:#fff;border:1px solid #dadce0;border-radius:10px;padding:14px 18px;font-family:DM Mono,monospace;box-shadow:0 2px 8px rgba(0,0,0,0.15);';
+  div.innerHTML =
+    `<div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#5f6368;margin-bottom:10px;">Volume Tiers</div>` +
+    [
+      ['rgba(239,68,68,0.6)',   'rgba(239,68,68,0.9)',   '5,000+'],
+      ['rgba(249,115,22,0.5)', 'rgba(249,115,22,0.85)', '500 – 5,000'],
+      ['rgba(234,179,8,0.45)', 'rgba(234,179,8,0.85)',  '100 – 500'],
+      ['rgba(34,197,94,0.4)',  'rgba(34,197,94,0.8)',   '20 – 100'],
+      ['rgba(26,115,232,0.35)','rgba(26,115,232,0.75)', '< 20'],
+    ].map(([fill,stroke,label]) =>
+      `<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px;font-size:11px;color:#3c4043;">
+        <div style="width:14px;height:14px;border-radius:50%;background:${fill};border:2px solid ${stroke};flex-shrink:0;"></div>
+        ${label}
+      </div>`
+    ).join('');
+  return div;
+};
+colorLegend.addTo(map);
+</script>
+</body>
+</html>
